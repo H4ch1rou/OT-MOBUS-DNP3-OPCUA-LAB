@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Laboratorios OT{% endblock %}</title>
+<style>
+  :root {
+    --bg: #eef1f6;
+    --panel: #ffffff;
+    --panel-border: #dde3ec;
+    --text: #1c2733;
+    --muted: #64748b;
+    --brand: #0b3d66;
+    --brand-2: #114b7a;
+    --accent: #0e8a7d;
+    --accent-bg: #e3f5f1;
+    --danger: #dc2626;
+    --danger-bg: #fdecec;
+    --warn: #d97706;
+    --track: #e6ebf1;
+    --sidebar-w: 260px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .shell { display: flex; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex: 0 0 var(--sidebar-w);
+    background: linear-gradient(180deg, var(--brand), var(--brand-2));
+    color: #eaf2fb;
+    padding: 18px 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+  }
+  .sidebar-brand {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 0 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.15);
+    margin-bottom: 6px;
+  }
+  .sidebar-brand small {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: #b8cfe6;
+    margin-top: 3px;
+  }
+
+  .protocol-group {
+    margin-top: 4px;
+    border-top: 1px solid rgba(255,255,255,.1);
+  }
+  .protocol-group summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .protocol-group summary::-webkit-details-marker { display: none; }
+  .protocol-group summary::after {
+    content: "\25BE";
+    font-size: 11px;
+    color: #b8cfe6;
+    transition: transform .15s ease;
+  }
+  .protocol-group[open] summary::after { transform: rotate(180deg); }
+  .protocol-group summary:hover { background: rgba(255,255,255,.06); }
+  .protocol-group.current summary { color: #fff; }
+  .protocol-group:not(.current) summary { color: #cfe0f2; }
+  .protocol-tag {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: var(--accent);
+    color: #04231f;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+
+  .nav-section {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #9fc0dd;
+    padding: 10px 20px 4px;
+  }
+  .nav-link {
+    display: block;
+    padding: 7px 20px;
+    color: #dbe8f5;
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+    transition: background .12s ease;
+  }
+  .nav-link:hover { background: rgba(255,255,255,.08); }
+  .nav-link.active {
+    background: rgba(255,255,255,.14);
+    border-left-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .protocol-group:not(.current) .nav-link { color: #a9c3dc; }
+  .protocol-group > .nav-link:first-of-type { padding-top: 2px; }
+
+  .sidebar-foot {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,.12);
+  }
+
+  .login-error {
+    background: var(--danger-bg); color: var(--danger);
+    border: 1px solid #f3c0c0; border-radius: 7px;
+    padding: 9px 12px; font-size: 13px; margin-bottom: 14px;
+  }
+
+  .content { flex: 1 1 auto; min-width: 0; }
+
+  /* ---------- Page header (dashboard + doc pages) ---------- */
+  header.page-header {
+    background: #fff;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  header.page-header h1 { font-size: 18px; margin: 0; }
+  header.page-header .sub { font-size: 12.5px; color: var(--muted); }
+  header.page-header .status { display: flex; align-items: center; gap: 18px; font-size: 12.5px; color: var(--muted); }
+  header.page-header .status .dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: #6b7f93; margin-right: 6px; vertical-align: middle;
+  }
+  header.page-header .status .dot.ok { background: #34d399; box-shadow: 0 0 8px #34d399; }
+  header.page-header .status .dot.error { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 24px 8px; }
+
+  footer.page-footer {
+    max-width: 1180px; margin: 0 auto; padding: 4px 24px 32px;
+    color: var(--muted); font-size: 12.5px; line-height: 1.7;
+  }
+  footer.page-footer code {
+    background: #e3e9f0; padding: 1px 6px; border-radius: 4px; color: var(--brand);
+  }
+
+  /* ---------- Dashboard (compartido por los 3 protocolos) ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .kpi { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 14px 16px; }
+  .kpi .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 6px; }
+  .kpi .value { font-size: 26px; font-weight: 600; }
+  .kpi .value.alert { color: var(--danger); }
+
+  .diagram-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 18px 18px 8px; margin-bottom: 22px; }
+  .diagram-card h2, .zonas-title { font-size: 12.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 8px; }
+  .diagram-wrap { width: 100%; overflow-x: auto; }
+  .diagram-wrap svg { width: 100%; min-width: 640px; height: auto; display: block; }
+  .pipe-flow { stroke-dasharray: 7 7; animation: flow 0.8s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -14; } }
+  .zone-label { font-size: 12px; fill: var(--text); font-family: inherit; }
+  .zone-sub { font-size: 10.5px; fill: var(--muted); font-family: inherit; }
+
+  .zonas-title { margin: 4px 0 12px; }
+  .zonas { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; margin-bottom: 26px; }
+  .card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 16px 18px 18px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .card-head h3 { font-size: 14.5px; margin: 0; }
+  .pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--track); color: var(--muted); }
+  .pill.abierta { background: var(--accent-bg); color: var(--accent); }
+  .pill.manual { background: #fdf1dc; color: var(--warn); }
+  .card-pills { display: flex; gap: 6px; }
+
+  .metric-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .metric-row .big { font-size: 28px; font-weight: 600; }
+  .metric-row .big small { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .metric-row .caudal { font-size: 12.5px; color: var(--muted); }
+  .bar-track { height: 8px; border-radius: 5px; background: var(--track); overflow: hidden; margin: 8px 0 14px; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, #1f9d8a, var(--accent)); width: 0%; transition: width .4s ease; }
+
+  .btn-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  button {
+    flex: 1; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--panel-border);
+    background: #f3f6fa; color: var(--text); font-size: 13.5px; cursor: pointer;
+    transition: background .15s ease, transform .05s ease;
+  }
+  button:hover { background: #e9eef4; }
+  button:active { transform: scale(.97); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #0c7a6f; }
+  button.danger-btn { background: #fff; border-color: var(--danger); color: var(--danger); }
+  button.danger-btn:hover { background: var(--danger-bg); }
+
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+  .field .row { display: flex; gap: 8px; }
+  .field input[type=number],
+  .field input[type=text],
+  .field input[type=password] {
+    width: 100%; padding: 8px 9px; border-radius: 7px; border: 1px solid var(--panel-border);
+    background: #fbfcfe; color: var(--text); font-size: 14px;
+  }
+  .field button { flex: 0 0 auto; padding: 8px 12px; font-size: 12.5px; }
+
+  .alarms { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+  .alarm-chip { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .alarm-chip .led { width: 9px; height: 9px; border-radius: 50%; background: var(--track); }
+  .alarm-chip.active .led { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+  .alarm-chip.active { color: var(--danger); font-weight: 600; }
+
+  /* ---------- Doc pages ---------- */
+  .doc-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; padding: 28px 32px 36px; margin-bottom: 32px; line-height: 1.65; }
+  .doc-card h1 { font-size: 24px; margin: 0 0 6px; }
+  .doc-card h2 { font-size: 19px; margin: 32px 0 12px; border-bottom: 1px solid var(--panel-border); padding-bottom: 6px; }
+  .doc-card h3 { font-size: 15.5px; margin: 22px 0 8px; }
+  .doc-card p { margin: 0 0 14px; }
+  .doc-card ul, .doc-card ol { margin: 0 0 14px; padding-left: 22px; }
+  .doc-card li { margin-bottom: 4px; }
+  .doc-card blockquote { margin: 0 0 16px; padding: 10px 16px; border-left: 3px solid var(--accent); background: var(--accent-bg); color: #0d5b52; border-radius: 0 6px 6px 0; }
+  .doc-card code { background: #eef2f7; padding: 1px 6px; border-radius: 4px; font-size: 13px; color: var(--brand); font-family: "Cascadia Code", Consolas, monospace; }
+  .doc-card pre { background: #0f1a24; color: #dbe8f5; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  .doc-card pre code { background: none; color: inherit; padding: 0; }
+  .doc-card table { border-collapse: collapse; width: 100%; margin: 0 0 18px; font-size: 13.5px; display: block; overflow-x: auto; }
+  .doc-card th, .doc-card td { border: 1px solid var(--panel-border); padding: 7px 10px; text-align: left; }
+  .doc-card th { background: #f3f6fa; font-weight: 600; }
+  .doc-card a { color: var(--accent); text-decoration: none; }
+  .doc-card a:hover { text-decoration: underline; }
+  .doc-card hr { border: none; border-top: 1px solid var(--panel-border); margin: 24px 0; }
+
+  /* ---------- Landing ---------- */
+  .protocol-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 20px; }
+  .protocol-card {
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: 22px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .protocol-card h3 { margin: 0; font-size: 17px; }
+  .protocol-card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; flex: 1; }
+  .protocol-card a.enter-btn {
+    display: inline-block; text-align: center; padding: 9px 14px; border-radius: 8px;
+    background: var(--accent); color: #fff; text-decoration: none; font-size: 13.5px; font-weight: 600;
+  }
+  .protocol-card a.enter-btn:hover { background: #0c7a6f; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      🌾 AgroRiego SCADA
+      <small>Laboratorios OT &mdash; un solo sitio, tres protocolos</small>
+    </div>
+
+    <a class="nav-link {{ 'active' if protocolo_actual is none and active_doc is none else '' }}" href="/">🏠 Inicio</a>
+
+    {% for p in protocolos_nav %}
+      <details class="protocol-group {{ 'current' if p.prefix == protocolo_actual else '' }}" {{ 'open' if p.prefix == protocolo_actual else '' }}>
+        <summary>
+          {{ p.nombre }}
+          {% if p.prefix == protocolo_actual %}<span class="protocol-tag">actual</span>{% endif %}
+        </summary>
+
+        <a class="nav-link {{ 'active' if p.prefix == protocolo_actual and active_doc is none else '' }}"
+           href="/{{ p.prefix }}/">📊 Dashboard</a>
+
+        <div class="nav-section">Documentacion</div>
+        {% for item in p.docs %}
+          <a class="nav-link {{ 'active' if p.prefix == protocolo_actual and active_doc == item.slug else '' }}"
+             href="/{{ p.prefix }}/docs/{{ item.slug }}">{{ item.title }}</a>
+        {% endfor %}
+
+        <div class="nav-section">Laboratorios</div>
+        {% for item in p.labs %}
+          <a class="nav-link {{ 'active' if p.prefix == protocolo_actual and active_doc == item.slug else '' }}"
+             href="/{{ p.prefix }}/docs/{{ item.slug }}">{{ item.title }}</a>
+        {% endfor %}
+
+        <div class="nav-section">Solucionario 🔒</div>
+        {% for item in p.solucionario %}
+          <a class="nav-link {{ 'active' if p.prefix == protocolo_actual and active_doc == item.slug else '' }}"
+             href="/{{ p.prefix }}/docs/{{ item.slug }}">
+            {{ '🔓' if autenticado else '🔒' }} {{ item.title }}
+          </a>
+        {% endfor %}
+      </details>
+    {% endfor %}
+
+    <div class="sidebar-foot">
+      {% if autenticado %}
+        <a class="nav-link" href="/logout" data-native>🔓 Cerrar sesion docente</a>
+      {% else %}
+        <a class="nav-link" href="/login" data-native>🔒 Acceso docente</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="content" id="content">
+    {% block content %}{% endblock %}
+    {# Dentro de #content a proposito: el router SPA solo reemplaza #content
+       (y re-ejecuta sus <script>), asi que un script fuera de aqui nunca
+       correria al llegar a la pagina navegando desde el menu. #}
+    {% block scripts %}{% endblock %}
+  </div>
+</div>
+
+<script>
+// Router SPA-liviano: intercepta clicks en enlaces internos, trae la
+// pagina completa con fetch(), y reemplaza solo #sidebar y #content en
+// el DOM actual (en vez de recargar la pagina entera). Si algo falla,
+// cae de vuelta a una navegacion normal. Cada pagina sigue funcionando
+// perfectamente sola (recarga directa, curl, sin JS) porque el servidor
+// siempre responde la pagina completa.
+(function () {
+  function limpiarIntervalos() {
+    (window.__pageIntervals || []).forEach(id => clearInterval(id));
+    window.__pageIntervals = [];
+  }
+
+  function reejecutarScripts(contenedor) {
+    contenedor.querySelectorAll('script').forEach(viejo => {
+      const nuevo = document.createElement('script');
+      if (viejo.src) nuevo.src = viejo.src;
+      else nuevo.textContent = viejo.textContent;
+      viejo.replaceWith(nuevo);
+    });
+  }
+
+  async function navegar(url, empujarHistorial) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const nuevoContenido = doc.getElementById('content');
+      const nuevoSidebar = doc.getElementById('sidebar');
+      if (!nuevoContenido || !nuevoSidebar) throw new Error('respuesta sin #content/#sidebar');
+
+      limpiarIntervalos();
+      document.title = doc.title;
+      document.getElementById('sidebar').innerHTML = nuevoSidebar.innerHTML;
+      document.getElementById('content').innerHTML = nuevoContenido.innerHTML;
+      reejecutarScripts(document.getElementById('content'));
+
+      if (empujarHistorial) history.pushState({ url }, '', url);
+      window.scrollTo(0, 0);
+    } catch (e) {
+      window.location.href = url;
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = a.getAttribute('href');
+    if (!href || href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#') || a.target === '_blank' || a.hasAttribute('data-native')) return;
+    e.preventDefault();
+    navegar(href, true);
+  });
+
+  window.addEventListener('popstate', function () {
+    navegar(location.pathname, false);
+  });
+})();
+</script>
+</body>
+</html>

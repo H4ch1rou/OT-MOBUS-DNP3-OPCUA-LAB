@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Acceso docente - AgroRiego SCADA{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <h1>Acceso docente</h1>
+    <span class="sub">Solucionario protegido</span>
+  </div>
+</header>
+
+<main>
+  <div class="doc-card" style="max-width:440px;">
+    <p style="margin-top:0">
+      Esta seccion contiene las <strong>pautas de correccion</strong> con el
+      resultado esperado y el paso a paso de resolucion de los tres
+      laboratorios de cada protocolo. Es material <strong>solo para
+      docentes</strong>.
+    </p>
+
+    {% if error %}
+      <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label>Usuario</label>
+        <input type="text" name="usuario" autocomplete="username" autofocus>
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" name="clave" autocomplete="current-password">
+      </div>
+      <button class="primary" type="submit" style="width:100%; margin-top:6px;">
+        Ingresar
+      </button>
+    </form>
+  </div>
+</main>
+
+{% endblock %}

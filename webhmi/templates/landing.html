@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Laboratorios OT - Inicio{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <h1>Laboratorios OT &mdash; Central de Riego</h1>
+    <span class="sub">Mismo escenario fisico (4 zonas de riego), tres protocolos industriales distintos</span>
+  </div>
+</header>
+
+<main>
+  <div class="doc-card" style="margin-bottom:22px;">
+    <p style="margin:0">
+      Cada protocolo controla el <strong>mismo proceso simulado</strong>
+      (una central de riego con 4 zonas: humedad, caudal, umbrales,
+      valvula y modo manual/automatico), para poder comparar como
+      Modbus TCP, DNP3 y OPC UA resuelven lo mismo de forma distinta --
+      en particular, como cada uno permite (o no) que el equipo de campo
+      avise cambios sin que nadie le pregunte primero.
+    </p>
+  </div>
+
+  <div class="protocol-cards">
+    {% for p in protocolos_nav %}
+      <div class="protocol-card">
+        <h3>{{ p.nombre }}</h3>
+        <p>{{ p.descripcion }}</p>
+        <a class="enter-btn" href="/{{ p.prefix }}/">Abrir dashboard &rarr;</a>
+      </div>
+    {% endfor %}
+  </div>
+</main>
+
+<footer class="page-footer">
+  Usa el menu lateral para navegar entre protocolos: cada uno tiene su
+  propio dashboard, documentacion del protocolo, y tres guias de
+  laboratorio que se resuelven analizando una captura de trafico
+  generada por el propio alumno.
+</footer>
+
+{% endblock %}

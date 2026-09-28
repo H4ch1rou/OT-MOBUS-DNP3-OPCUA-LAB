@@ -1,0 +1,224 @@
+services:
+  # ============================================================
+  # Modbus TCP
+  # ============================================================
+  modbus-slave:
+    build: ./modbus/slave
+    container_name: modbus-slave
+    hostname: modbus-slave
+    restart: unless-stopped
+    networks:
+      - ot_network
+    ports:
+      - "5020:502"
+
+  modbus-master:
+    build: ./modbus/master
+    container_name: modbus-master
+    hostname: modbus-master
+    restart: unless-stopped
+    depends_on:
+      - modbus-slave
+    environment:
+      SLAVE_HOST: modbus-slave
+      SLAVE_PORT: "502"
+      UNIT_ID: "1"
+      POLL_SECONDS: "2"
+    networks:
+      - ot_network
+
+  # Consola de operador Modbus, conectada directo al RTU. No arranca con
+  # "up" (es interactiva): docker compose run --rm modbus-operador
+  modbus-operador:
+    build: ./modbus/operador
+    container_name: modbus-operador
+    profiles: ["manual"]
+    stdin_open: true
+    tty: true
+    environment:
+      SLAVE_HOST: modbus-slave
+      SLAVE_PORT: "502"
+      UNIT_ID: "1"
+    networks:
+      - ot_network
+
+  # Punto de captura Modbus. Inactivo hasta que el alumno lo activa:
+  # docker exec -it modbus-sniffer sh
+  modbus-sniffer:
+    image: nicolaka/netshoot:latest
+    container_name: modbus-sniffer
+    depends_on:
+      - modbus-slave
+    network_mode: "service:modbus-slave"
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    volumes:
+      - ./modbus/captures:/captures
+    command: ["tail", "-f", "/dev/null"]
+
+  # ============================================================
+  # DNP3
+  # ============================================================
+  dnp3-outstation:
+    build:
+      context: ./dnp3
+      dockerfile: outstation/Dockerfile
+    container_name: dnp3-outstation
+    hostname: dnp3-outstation
+    restart: unless-stopped
+    networks:
+      - ot_network
+    ports:
+      - "20000:20000"
+
+  dnp3-master:
+    build:
+      context: ./dnp3
+      dockerfile: master/Dockerfile
+    container_name: dnp3-master
+    hostname: dnp3-master
+    restart: unless-stopped
+    depends_on:
+      - dnp3-outstation
+    environment:
+      OUTSTATION_HOST: dnp3-outstation
+      OUTSTATION_PORT: "20000"
+      MASTER_ADDR: "1"
+      OUTSTATION_ADDR: "10"
+      POLL_SECONDS: "2"
+    networks:
+      - ot_network
+
+  dnp3-operador:
+    build:
+      context: ./dnp3
+      dockerfile: operador/Dockerfile
+    container_name: dnp3-operador
+    profiles: ["manual"]
+    stdin_open: true
+    tty: true
+    environment:
+      OUTSTATION_HOST: dnp3-outstation
+      OUTSTATION_PORT: "20000"
+      MASTER_ADDR: "1"
+      OUTSTATION_ADDR: "10"
+    networks:
+      - ot_network
+
+  dnp3-sniffer:
+    image: nicolaka/netshoot:latest
+    container_name: dnp3-sniffer
+    depends_on:
+      - dnp3-outstation
+    network_mode: "service:dnp3-outstation"
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    volumes:
+      - ./dnp3/captures:/captures
+    command: ["tail", "-f", "/dev/null"]
+
+  # ============================================================
+  # OPC UA
+  # ============================================================
+  opcua-server:
+    build: ./opcua/server
+    container_name: opcua-server
+    hostname: opcua-server
+    restart: unless-stopped
+    networks:
+      - ot_network
+    ports:
+      - "4840:4840"
+
+  opcua-master:
+    build: ./opcua/master
+    container_name: opcua-master
+    hostname: opcua-master
+    restart: unless-stopped
+    depends_on:
+      - opcua-server
+    environment:
+      SERVER_HOST: opcua-server
+      SERVER_PORT: "4840"
+      POLL_SECONDS: "2"
+    networks:
+      - ot_network
+
+  opcua-operador:
+    build: ./opcua/operador
+    container_name: opcua-operador
+    profiles: ["manual"]
+    stdin_open: true
+    tty: true
+    environment:
+      SERVER_HOST: opcua-server
+      SERVER_PORT: "4840"
+    networks:
+      - ot_network
+
+  opcua-sniffer:
+    image: nicolaka/netshoot:latest
+    container_name: opcua-sniffer
+    depends_on:
+      - opcua-server
+    network_mode: "service:opcua-server"
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    volumes:
+      - ./opcua/captures:/captures
+    command: ["tail", "-f", "/dev/null"]
+
+  # ============================================================
+  # HMI web UNIFICADA: un solo sitio para los tres protocolos.
+  #   http://localhost:9090
+  # ============================================================
+  webhmi:
+    build:
+      context: .
+      dockerfile: webhmi/Dockerfile
+    container_name: webhmi
+    hostname: webhmi
+    restart: unless-stopped
+    depends_on:
+      - modbus-slave
+      - dnp3-outstation
+      - opcua-server
+    environment:
+      MODBUS_HOST: modbus-slave
+      MODBUS_PORT: "502"
+      MODBUS_UNIT_ID: "1"
+      DNP3_HOST: dnp3-outstation
+      DNP3_PORT: "20000"
+      DNP3_MASTER_ADDR: "1"
+      DNP3_OUTSTATION_ADDR: "10"
+      OPCUA_HOST: opcua-server
+      OPCUA_PORT: "4840"
+      DOCS_DIR: "/app/docs"
+      # Acceso docente al solucionario (menu "Solucionario"). Cambia estas
+      # credenciales antes de usar el laboratorio con alumnos.
+      SOLUCIONARIO_USUARIO: "docente"
+      SOLUCIONARIO_PASSWORD: "riego2024"
+      SECRET_KEY: "agroriego-cambia-esta-clave-secreta"
+    ports:
+      - "9090:8080"
+    volumes:
+      - ./README.md:/app/docs/INDICE-PROTOCOLOS.md:ro
+      - ./modbus/README.md:/app/docs/modbus/README.md:ro
+      - ./modbus/PROTOCOLO-MODBUS.md:/app/docs/modbus/PROTOCOLO-MODBUS.md:ro
+      - ./modbus/laboratorios:/app/docs/modbus/laboratorios:ro
+      - ./dnp3/README.md:/app/docs/dnp3/README.md:ro
+      - ./dnp3/PROTOCOLO-DNP3.md:/app/docs/dnp3/PROTOCOLO-DNP3.md:ro
+      - ./dnp3/laboratorios:/app/docs/dnp3/laboratorios:ro
+      - ./opcua/README.md:/app/docs/opcua/README.md:ro
+      - ./opcua/PROTOCOLO-OPCUA.md:/app/docs/opcua/PROTOCOLO-OPCUA.md:ro
+      - ./opcua/laboratorios:/app/docs/opcua/laboratorios:ro
+    networks:
+      - ot_network
+
+networks:
+  # Subred explicita (ver el historial de este proyecto: dejar que Docker
+  # elija sola puede fallar con "Pool overlaps..." en hosts con muchas
+  # redes acumuladas). Ahora es UNA sola red compartida por todo -- ya no
+  # hay tres proyectos de compose separados compitiendo por rangos.
+  ot_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.66.77.0/24

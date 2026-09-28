@@ -1,0 +1,19 @@
+# Capturas de trafico generadas por los alumnos (no versionar)
+captures/*.pcap
+**/captures/*.pcap
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Variables de entorno locales (si alguien crea un .env para las
+# credenciales del solucionario en vez de editar docker-compose.yml)
+.env
+.env.*
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

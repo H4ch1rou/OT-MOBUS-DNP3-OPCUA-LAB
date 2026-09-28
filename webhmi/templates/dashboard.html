@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}{{ nombre_protocolo }} - AgroRiego SCADA{% endblock %}
+
+{% block content %}
+
+<header class="page-header">
+  <div>
+    <h1>Panel de Control de Riego</h1>
+    <span class="sub">{{ nombre_protocolo }} &mdash; Dashboard</span>
+  </div>
+  <div class="status">
+    <span><span class="dot" id="conn-dot"></span><span id="conn-text">conectando...</span></span>
+    <span>{{ host }}:{{ port }}</span>
+    <span id="reloj">--:--:--</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="label">Valvulas abiertas</div>
+      <div class="value" id="kpi-valvulas">-- / {{ zonas|length }}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Caudal total</div>
+      <div class="value" id="kpi-caudal">-- L/min</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Humedad promedio</div>
+      <div class="value" id="kpi-humedad">-- %</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Alarmas activas</div>
+      <div class="value" id="kpi-alarmas">--</div>
+    </div>
+  </div>
+
+  <div class="diagram-card">
+    <h2>Esquema de la red de riego</h2>
+    <div class="diagram-wrap">
+      <svg id="diagrama" viewBox="0 0 800 170" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="10" width="46" height="26" rx="4" fill="#114b7a"></rect>
+        <text x="33" y="27" text-anchor="middle" class="zone-label" fill="#fff" font-size="10">Matriz</text>
+        <line x1="56" y1="23" x2="750" y2="23" stroke="#9fb3c8" stroke-width="6" stroke-linecap="round"></line>
+        <g id="diagrama-zonas"></g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="zonas-title">Zonas de riego</div>
+  <div class="zonas" id="zonas-contenedor"></div>
+
+</main>
+
+<footer class="page-footer">
+  {{ footer_html | safe }}
+</footer>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const API_PREFIX = "{{ prefix }}";
+  const ZONAS_META = {{ zonas|tojson }};
+  const POLL_MS = 1500;
+  const N_ZONAS = ZONAS_META.length;
+
+  function crearDiagrama() {
+    const g = document.getElementById('diagrama-zonas');
+    const ancho = 800;
+    const margenIzq = 90, margenDer = 40;
+    const paso = (ancho - margenIzq - margenDer) / (N_ZONAS - 1 || 1);
+
+    ZONAS_META.forEach(([id, nombre], idx) => {
+      const x = margenIzq + paso * idx;
+      const corto = nombre.replace(/^Zona \d+ - /, '');
+      g.innerHTML += `
+        <line x1="${x}" y1="23" x2="${x}" y2="60" stroke="#9fb3c8" stroke-width="5" id="pipe-${id}"></line>
+        <g id="valve-${id}" transform="translate(${x},72)">
+          <polygon points="-10,-10 10,-10 0,0" fill="#9fb3c8"></polygon>
+          <polygon points="-10,10 10,10 0,0" fill="#9fb3c8"></polygon>
+        </g>
+        <line x1="${x}" y1="82" x2="${x}" y2="110" stroke="#c3cfdb" stroke-width="4"></line>
+        <circle cx="${x}" cy="118" r="5" fill="#c3cfdb" id="emisor-${id}"></circle>
+        <text x="${x}" y="140" text-anchor="middle" class="zone-label">Zona ${id}</text>
+        <text x="${x}" y="154" text-anchor="middle" class="zone-sub">${corto}</text>
+      `;
+    });
+  }
+
+  function crearTarjetas() {
+    const cont = document.getElementById('zonas-contenedor');
+    cont.innerHTML = ZONAS_META.map(([id, nombre]) => `
+      <div class="card" id="card-${id}">
+        <div class="card-head">
+          <h3>${nombre}</h3>
+          <div class="card-pills">
+            <span class="pill" id="modo-${id}">--</span>
+            <span class="pill" id="pill-${id}">--</span>
+          </div>
+        </div>
+        <div class="metric-row">
+          <div class="big"><span id="humedad-${id}">--</span><small>% humedad</small></div>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="bar-${id}"></div></div>
+        <div class="metric-row"><span class="caudal">Caudal: <span id="caudal-${id}">--</span> L/min</span></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="primary" onclick="ZonaCtl.setValvula(${id}, true)">Abrir</button>
+          <button class="danger-btn" onclick="ZonaCtl.setValvula(${id}, false)">Cerrar</button>
+        </div>
+        <div class="btn-row">
+          <button onclick="ZonaCtl.setModo(${id}, false)">Volver a Automatico</button>
+        </div>
+        <div class="field">
+          <label>Umbral minimo (abre) %</label>
+          <div class="row">
+            <input type="number" id="umin-${id}" min="0" max="100">
+            <button onclick="ZonaCtl.setUmbral(${id}, 'min')">Aplicar</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Umbral maximo (cierra) %</label>
+          <div class="row">
+            <input type="number" id="umax-${id}" min="0" max="100">
+            <button onclick="ZonaCtl.setUmbral(${id}, 'max')">Aplicar</button>
+          </div>
+        </div>
+        <div class="alarms">
+          <div class="alarm-chip" id="alarma-baja-${id}"><span class="led"></span>humedad baja</div>
+          <div class="alarm-chip" id="alarma-ench-${id}"><span class="led"></span>encharcamiento</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function campoEnFoco(id) {
+    const activo = document.activeElement;
+    return activo && (activo.id === `umin-${id}` || activo.id === `umax-${id}`);
+  }
+
+  async function actualizarEstado() {
+    const dot = document.getElementById('conn-dot');
+    const txt = document.getElementById('conn-text');
+    if (!dot || !txt) return; // la pagina ya no esta (navegamos a otro lado)
+    try {
+      const res = await fetch(`/${API_PREFIX}/api/estado`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const zonas = data.zonas;
+
+      let valvulasAbiertas = 0, caudalTotal = 0, alarmasActivas = 0, humedadTotal = 0;
+
+      zonas.forEach(z => {
+        valvulasAbiertas += z.valvula ? 1 : 0;
+        caudalTotal += z.caudal;
+        humedadTotal += z.humedad;
+        alarmasActivas += (z.alarma_baja ? 1 : 0) + (z.alarma_encharcamiento ? 1 : 0);
+
+        document.getElementById(`humedad-${z.id}`).textContent = z.humedad;
+        document.getElementById(`bar-${z.id}`).style.width = z.humedad + '%';
+        document.getElementById(`caudal-${z.id}`).textContent = z.caudal;
+
+        const pill = document.getElementById(`pill-${z.id}`);
+        pill.textContent = z.valvula ? 'ABIERTA' : 'CERRADA';
+        pill.className = 'pill' + (z.valvula ? ' abierta' : '');
+
+        const modo = document.getElementById(`modo-${z.id}`);
+        modo.textContent = z.modo_manual ? 'MANUAL' : 'AUTOMATICO';
+        modo.className = 'pill' + (z.modo_manual ? ' manual' : '');
+
+        if (!campoEnFoco(z.id)) {
+          document.getElementById(`umin-${z.id}`).value = z.umbral_min;
+          document.getElementById(`umax-${z.id}`).value = z.umbral_max;
+        }
+
+        document.getElementById(`alarma-baja-${z.id}`).className = 'alarm-chip' + (z.alarma_baja ? ' active' : '');
+        document.getElementById(`alarma-ench-${z.id}`).className = 'alarm-chip' + (z.alarma_encharcamiento ? ' active' : '');
+
+        const valveIcon = document.getElementById(`valve-${z.id}`);
+        const pipe = document.getElementById(`pipe-${z.id}`);
+        const emisor = document.getElementById(`emisor-${z.id}`);
+        if (valveIcon) valveIcon.querySelectorAll('polygon').forEach(p => p.setAttribute('fill', z.valvula ? '#0e8a7d' : '#9fb3c8'));
+        if (pipe) { pipe.classList.toggle('pipe-flow', z.valvula); pipe.setAttribute('stroke', z.valvula ? '#0e8a7d' : '#9fb3c8'); }
+        if (emisor) emisor.setAttribute('fill', z.valvula ? '#0e8a7d' : '#c3cfdb');
+      });
+
+      document.getElementById('kpi-valvulas').textContent = `${valvulasAbiertas} / ${zonas.length}`;
+      document.getElementById('kpi-caudal').textContent = `${caudalTotal} L/min`;
+      document.getElementById('kpi-humedad').textContent = `${Math.round(humedadTotal / zonas.length)} %`;
+      const kpiAlarmas = document.getElementById('kpi-alarmas');
+      kpiAlarmas.textContent = alarmasActivas;
+      kpiAlarmas.className = 'value' + (alarmasActivas > 0 ? ' alert' : '');
+
+      dot.className = 'dot ok';
+      txt.textContent = 'conectado';
+    } catch (e) {
+      dot.className = 'dot error';
+      txt.textContent = 'sin conexion';
+    }
+  }
+
+  window.ZonaCtl = {
+    async setValvula(zonaId, abierta) {
+      await fetch(`/${API_PREFIX}/api/zonas/${zonaId}/valvula`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ abierta }),
+      });
+      actualizarEstado();
+    },
+    async setModo(zonaId, manual) {
+      await fetch(`/${API_PREFIX}/api/zonas/${zonaId}/modo`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ manual }),
+      });
+      actualizarEstado();
+    },
+    async setUmbral(zonaId, cual) {
+      const id = cual === 'min' ? `umin-${zonaId}` : `umax-${zonaId}`;
+      const endpoint = cual === 'min' ? 'umbral_min' : 'umbral_max';
+      const valor = parseInt(document.getElementById(id).value, 10);
+      if (Number.isNaN(valor)) return;
+      await fetch(`/${API_PREFIX}/api/zonas/${zonaId}/${endpoint}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ valor }),
+      });
+      actualizarEstado();
+    },
+  };
+
+  function actualizarReloj() {
+    const el = document.getElementById('reloj');
+    if (el) el.textContent = new Date().toLocaleTimeString('es-CL');
+  }
+
+  crearDiagrama();
+  crearTarjetas();
+  actualizarEstado();
+  actualizarReloj();
+  const idPoll = setInterval(actualizarEstado, POLL_MS);
+  const idReloj = setInterval(actualizarReloj, 1000);
+  window.__pageIntervals = window.__pageIntervals || [];
+  window.__pageIntervals.push(idPoll, idReloj);
+})();
+</script>
+{% endblock %}
